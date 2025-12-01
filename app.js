@@ -106,6 +106,10 @@ const App = () => {
         // Use a fallback if avatar is missing/broken
         const sourceUrl = currentUser?.avatarUrl || "https://images.websim.com/avatar/default";
 
+        // Provide visual feedback immediately
+        setStatusMsg("Initiating Self-Test...");
+        setResultImage(null);
+
         const msg = {
             type: 'REQUEST_GENERATION',
             data: {
@@ -118,7 +122,8 @@ const App = () => {
         };
 
         // Directly invoke the handler to start processing as "myself"
-        await handleMessage(msg);
+        // We wrap this in a timeout to ensure state updates (like tab switch) render first
+        setTimeout(() => handleMessage(msg), 100);
     };
 
     // --- The Core "Server" Logic (Runs on client) ---

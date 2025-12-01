@@ -40,6 +40,7 @@ window.AppUtils = {
         } else {
             // Create new single row for this user if it doesn't exist
             await collection.create({
+                username: currentUser.username,
                 logs: JSON.stringify([jobLog]),
                 total_processed: 1
             });
