@@ -57,5 +57,30 @@ window.AppUtils = {
         if (p.accepting === false) return { label: isMe ? "Maxed Out" : "Maxed Out", valid: false };
         
         return { label: isMe ? "(You) Available" : "Available", valid: true };
+    },
+
+    /**
+     * Download an image to device (Robust)
+     */
+    downloadImage: async (url, filenamePrefix = 'genshare') => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            // Force image/png type for correct saving
+            const newBlob = new Blob([blob], { type: 'image/png' });
+            const blobUrl = URL.createObjectURL(newBlob);
+            
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `${filenamePrefix}-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        } catch (err) {
+            console.error("Download failed, falling back to new tab", err);
+            window.open(url, '_blank');
+        }
     }
 };

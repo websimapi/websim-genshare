@@ -5,25 +5,12 @@ window.GenerateTab = ({
     peers, currentUser, room, sendRequest, presence
 }) => {
     const PeerList = window.PeerList;
+    const { downloadImage } = window.AppUtils;
 
-    const handleDownload = async (e) => {
+    const handleDownload = (e) => {
         e.preventDefault();
         if (!resultImage) return;
-        try {
-            const response = await fetch(resultImage);
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `generated-${Date.now()}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-        } catch (err) {
-            console.error("Download failed", err);
-            window.open(resultImage, '_blank');
-        }
+        downloadImage(resultImage, 'generated');
     };
 
     return (
