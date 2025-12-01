@@ -131,7 +131,25 @@ const App = () => {
             };
 
             if (requestData.sourceImageUrl) {
-                options.image_inputs = [{ url: requestData.sourceImageUrl }];
+                // Fetch the uploaded image and convert to base64 for the AI model
+                // websim.imageGen requires base64 data URI for image_inputs, not remote URLs
+                try {
+                    const response = await fetch(requestData.sourceImageUrl);
+                    if (!response.ok) throw new Error("Could not download source image");
+                    const blob = await response.blob();
+                    
+                    const base64Data = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    
+                    options.image_inputs = [{ url: base64Data }];
+                } catch (imgErr) {
+                    console.error("Failed to prepare source image:", imgErr);
+                    throw new Error("Failed to process attached image.");
+                }
             }
 
             // Call AI
