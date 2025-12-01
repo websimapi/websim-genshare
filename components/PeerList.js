@@ -1,20 +1,29 @@
 window.PeerList = ({ peers, currentUser, room, presence, processingPeerId, sendRequest }) => {
     const { getPeerStatus } = window.AppUtils;
 
-    // Combine me and peers into one list
-    const allPeers = [];
+    // Deduplicate peers by username to ensure one selector per person
+    const peersMap = new Map();
+
+    // 1. Add "Me" first (Highest priority, ensures correct PFP)
     if (currentUser && room.clientId) {
-        allPeers.push({
+        peersMap.set(currentUser.username, {
             id: room.clientId,
             username: `${currentUser.username} (Me)`,
             avatarUrl: currentUser.avatarUrl
         });
     }
 
-    // Add other peers (excluding self if present in peers list)
+    // 2. Add other peers (excluding duplicates)
     Object.values(peers).forEach(p => {
-        if (p.id !== room.clientId) allPeers.push(p);
+        if (p.id === room.clientId) return; // Skip exact self matches by ID
+
+        // Only add if username not already in list (Avoids duplicates/multiple tabs)
+        if (p.username && !peersMap.has(p.username)) {
+            peersMap.set(p.username, p);
+        }
     });
+
+    const allPeers = Array.from(peersMap.values());
 
     if (allPeers.length === 0 && !currentUser) {
          return (
