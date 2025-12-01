@@ -65,64 +65,68 @@ window.GalleryTab = ({ room }) => {
             {/* Detail Modal */}
             {selectedItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedItem(null)}>
-                    <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                    {/* Fixed container to prevent button from scrolling away */}
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Always-visible Close Button */}
                         <button 
                             onClick={() => setSelectedItem(null)}
-                            className="absolute top-2 right-2 z-10 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-md transition-colors"
+                            className="absolute top-3 right-3 z-20 bg-black/60 hover:bg-red-900/80 text-white p-2 rounded-full backdrop-blur-md transition-colors border border-white/10 shadow-lg"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
                         
-                        <div className="relative bg-black/50 min-h-[200px] flex items-center justify-center p-4">
-                            <img src={selectedItem.url} className="w-full h-auto object-contain max-h-[50vh] rounded shadow-lg" />
-                        </div>
-                        
-                        <div className="p-5 space-y-5">
-                            <div className="flex justify-between items-start gap-4">
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-xl text-white">Creation Details</h3>
-                                    <p className="text-xs text-slate-400 mt-1">{new Date(selectedItem.timestamp).toLocaleString()}</p>
+                        {/* Scrollable Body */}
+                        <div className="overflow-y-auto scroll-container flex-1">
+                            <div className="relative bg-black/50 min-h-[200px] flex items-center justify-center p-4">
+                                <img src={selectedItem.url} className="w-full h-auto object-contain max-h-[40vh] rounded shadow-lg" />
+                            </div>
+                            
+                            <div className="p-4 space-y-3">
+                                <div className="flex justify-between items-start gap-4 pr-8">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-white leading-tight">Creation Details</h3>
+                                        <p className="text-xs text-slate-400">{new Date(selectedItem.timestamp).toLocaleString()}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => downloadImage(selectedItem.url, 'genshare')}
+                                        className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-lg shadow-purple-900/20 whitespace-nowrap"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        Save
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => downloadImage(selectedItem.url, 'genshare')}
-                                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-lg shadow-purple-900/20"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                    Download
-                                </button>
-                            </div>
 
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                                <label className="text-xs uppercase text-purple-400 font-bold mb-2 block tracking-wider">Prompt</label>
-                                <p className="text-sm text-slate-200 leading-relaxed font-light">{selectedItem.prompt}</p>
-                            </div>
+                                <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                                    <label className="text-[10px] uppercase text-purple-400 font-bold mb-1 block tracking-wider">Prompt</label>
+                                    <p className="text-sm text-slate-200 leading-snug font-light max-h-32 overflow-y-auto">{selectedItem.prompt}</p>
+                                </div>
 
-                            {selectedItem.source_image && (
-                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                                    <label className="text-xs uppercase text-purple-400 font-bold mb-3 block tracking-wider">Original Source Image</label>
-                                    <div className="flex items-start gap-4">
-                                        <img src={selectedItem.source_image} className="w-24 h-24 object-cover rounded-lg border border-slate-600 bg-slate-800" />
-                                        <div className="flex-1 text-xs text-slate-400">
-                                            This image was used as a reference for the generation (Img2Img).
+                                {selectedItem.source_image && (
+                                    <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 flex gap-3 items-center">
+                                        <img src={selectedItem.source_image} className="w-12 h-12 object-cover rounded border border-slate-600 bg-slate-800" />
+                                        <div className="text-xs text-slate-400 flex-1">
+                                            <span className="block text-purple-400 font-bold text-[10px] uppercase">Source Image</span>
+                                            Used as reference (Img2Img)
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            <div className="grid grid-cols-2 gap-4 border-t border-slate-800 pt-4">
-                                <div className="bg-slate-800/30 p-3 rounded-lg">
-                                    <span className="text-slate-500 block text-xs uppercase mb-1">Processor</span>
-                                    <span className="text-slate-200 font-medium flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                                        {selectedItem.processor}
-                                    </span>
-                                </div>
-                                <div className="bg-slate-800/30 p-3 rounded-lg">
-                                    <span className="text-slate-500 block text-xs uppercase mb-1">Requested By</span>
-                                    <span className="text-slate-200 font-medium flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                        {selectedItem.requester}
-                                    </span>
+                                <div className="grid grid-cols-2 gap-3 border-t border-slate-800 pt-3">
+                                    <div className="bg-slate-800/30 p-2 rounded">
+                                        <span className="text-slate-500 block text-[10px] uppercase mb-0.5">Processor</span>
+                                        <span className="text-slate-200 text-sm font-medium flex items-center gap-1.5 truncate">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500 flex-shrink-0"></div>
+                                            {selectedItem.processor}
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-800/30 p-2 rounded">
+                                        <span className="text-slate-500 block text-[10px] uppercase mb-0.5">Requested By</span>
+                                        <span className="text-slate-200 text-sm font-medium flex items-center gap-1.5 truncate">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></div>
+                                            {selectedItem.requester}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
