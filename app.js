@@ -98,6 +98,29 @@ const App = () => {
         }
     };
 
+    const runSelfTest = async () => {
+        setTab('generate');
+        const testPrompt = "A futuristic cyberpunk artistic variation of this profile avatar, high quality, 8k, vibrant colors";
+        setPrompt(testPrompt);
+        
+        // Use a fallback if avatar is missing/broken
+        const sourceUrl = currentUser?.avatarUrl || "https://images.websim.com/avatar/default";
+
+        const msg = {
+            type: 'REQUEST_GENERATION',
+            data: {
+                targetId: room.clientId,
+                senderId: room.clientId,
+                senderName: currentUser?.username || "Self",
+                prompt: testPrompt,
+                sourceImageUrl: sourceUrl
+            }
+        };
+
+        // Directly invoke the handler to start processing as "myself"
+        await handleMessage(msg);
+    };
+
     // --- The Core "Server" Logic (Runs on client) ---
     const processRequest = async (requestData) => {
         const COST = 100;
@@ -155,12 +178,23 @@ const App = () => {
             // Call AI
             const result = await websim.imageGen(options);
 
+            // Persistent Upload: Upload generated image to storage so it's permanent and downloadable
+            let finalImageUrl = result.url;
+            try {
+                const imgRes = await fetch(result.url);
+                const imgBlob = await imgRes.blob();
+                const imgFile = new File([imgBlob], `gen_${Date.now()}.png`, { type: 'image/png' });
+                finalImageUrl = await websim.upload(imgFile);
+            } catch (e) {
+                console.error("Failed to persist generated image:", e);
+            }
+
             // Update local spent amount
             const newSpent = currentSpent + COST;
             setSpent(newSpent);
 
             // Log to Database using Utils
-            await logJobToDatabase(room, requestData, result.url);
+            await logJobToDatabase(room, requestData, finalImageUrl);
 
             // Send Result back
             const msg = {
@@ -169,7 +203,7 @@ const App = () => {
                     targetId: requestData.senderId,
                     processorName: room.peers[room.clientId]?.username || currentUser?.username || "Unknown",
                     success: true,
-                    imageUrl: result.url
+                    imageUrl: finalImageUrl
                 }
             };
             room.send(msg);
@@ -277,6 +311,7 @@ const App = () => {
                         setThreshold={setThreshold}
                         spent={spent}
                         setSpent={setSpent}
+                        runSelfTest={runSelfTest}
                     />
                 )}
 
