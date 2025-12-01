@@ -7,8 +7,11 @@ window.AppUtils = {
     logJobToDatabase: async (room, reqData, resultUrl) => {
         const collection = room.collection('processor_stats_v1');
         
-        // Find existing record for this user (created_by is automatic filter usually, but we be explicit)
-        const records = await collection.filter({ created_by: true }).getList();
+        // Get current user to ensure we find OUR record
+        const currentUser = await window.websim.getCurrentUser();
+
+        // Find existing record by username to ensure one row per user
+        const records = await collection.filter({ username: currentUser.username }).getList();
 
         const jobLog = {
             timestamp: new Date().toISOString(),
@@ -21,7 +24,9 @@ window.AppUtils = {
             const record = records[0];
             let logs = [];
             try {
+                // Handle legacy data or stringified json
                 logs = record.logs ? (typeof record.logs === 'string' ? JSON.parse(record.logs) : record.logs) : [];
+                if (!Array.isArray(logs)) logs = [];
             } catch (e) { logs = [] }
 
             logs.push(jobLog);
@@ -31,6 +36,7 @@ window.AppUtils = {
                 total_processed: (record.total_processed || 0) + 1
             });
         } else {
+            // Create new single row for this user if it doesn't exist
             await collection.create({
                 logs: JSON.stringify([jobLog]),
                 total_processed: 1

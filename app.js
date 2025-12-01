@@ -180,8 +180,22 @@ const App = () => {
 
     const fetchLeaderboard = async () => {
         const records = await room.collection('processor_stats_v1').getList();
+        
+        // Aggregate stats by username to ensure unique entries per user in the view
+        const statsMap = {};
+        records.forEach(r => {
+            if (!r.username) return;
+            if (!statsMap[r.username]) {
+                statsMap[r.username] = { ...r, total_processed: 0 };
+            }
+            // Consolidate counts if multiple rows exist
+            statsMap[r.username].total_processed += (r.total_processed || 0);
+        });
+
+        const aggregated = Object.values(statsMap);
+        
         // Sort by total_processed descending
-        const sorted = records.sort((a, b) => (b.total_processed || 0) - (a.total_processed || 0));
+        const sorted = aggregated.sort((a, b) => (b.total_processed || 0) - (a.total_processed || 0));
         setLeaderboard(sorted);
     };
 
