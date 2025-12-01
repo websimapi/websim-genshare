@@ -1,6 +1,6 @@
 window.LeaderboardTab = ({ leaderboard }) => {
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-2xl mx-auto">
             <h2 className="text-lg font-bold text-center mb-4">Top Processors</h2>
             {leaderboard.length === 0 ? (
                 <div className="text-center text-slate-500 py-10">Loading stats...</div>

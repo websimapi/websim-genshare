@@ -1,6 +1,6 @@
 window.SettingsTab = ({ currentUser, threshold, setThreshold, spent, setSpent }) => {
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                 <div className="flex items-center gap-4 mb-4">
                     <img src={currentUser?.avatarUrl} className="w-16 h-16 rounded-full border-2 border-purple-500" />

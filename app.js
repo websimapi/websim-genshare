@@ -264,11 +264,11 @@ const App = () => {
     };
 
     return (
-        <div className="flex flex-col h-full max-w-md mx-auto w-full bg-slate-900 shadow-2xl relative">
+        <div className="flex flex-col h-full w-full md:max-w-7xl md:mx-auto bg-slate-900 shadow-2xl relative md:border-x md:border-slate-800">
             <Header tab={tab} setTab={setTab} />
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto p-4 scroll-container relative">
+            <main className="flex-1 overflow-y-auto p-4 scroll-container relative w-full">
 
                 {tab === 'settings' && (
                     <SettingsTab 
