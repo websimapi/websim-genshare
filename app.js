@@ -100,23 +100,34 @@ const App = () => {
 
     const runSelfTest = async () => {
         try {
-            // Use a simple default prompt and a default image (your avatar or fallback)
+            // Use a simple default prompt and avatar (or fallback) as the base image
             const testPrompt = "Test img2img request: stylized neon portrait, cyberpunk, high detail";
             const sourceUrl = currentUser?.avatarUrl || "https://images.websim.com/avatar/default";
 
-            // Download the source image and convert to base64 data URL for img2img
+            // 1) Download the source image (avatar)
             const response = await fetch(sourceUrl);
             if (!response.ok) throw new Error("Could not download test source image");
             const blob = await response.blob();
+
+            // 2) Wrap the blob in a File so we can upload it (same as normal flow)
+            const testFile = new File([blob], `self_test_${Date.now()}.png`, { type: "image/png" });
+
+            // 3) Upload the file to persistent storage; this URL mimics sourceImageUrl in normal requests
+            const uploadedUrl = await websim.upload(testFile);
+
+            // 4) Processor-style step: fetch the uploaded URL and convert to base64 data URL
+            const uploadedRes = await fetch(uploadedUrl);
+            if (!uploadedRes.ok) throw new Error("Could not re-download uploaded self-test image");
+            const uploadedBlob = await uploadedRes.blob();
 
             const base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result);
                 reader.onerror = reject;
-                reader.readAsDataURL(blob);
+                reader.readAsDataURL(uploadedBlob);
             });
 
-            // Trigger an img2img generation processed locally (no UI updates, no DB logging)
+            // 5) Trigger an img2img generation using the uploaded image URL content
             await websim.imageGen({
                 prompt: testPrompt,
                 width: 1024,
