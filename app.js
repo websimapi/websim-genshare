@@ -100,17 +100,38 @@ const App = () => {
 
     const runSelfTest = async () => {
         try {
-            // Use a simple default prompt and avatar (or fallback) as the base image
+            // Use a simple default prompt and a locally generated image as the base
             const testPrompt = "Test img2img request: stylized neon portrait, cyberpunk, high detail";
-            const sourceUrl = currentUser?.avatarUrl || "https://images.websim.com/avatar/default";
 
-            // 1) Download the source image (avatar)
-            const response = await fetch(sourceUrl);
-            if (!response.ok) throw new Error("Could not download test source image");
-            const blob = await response.blob();
+            // 1) Create a simple local canvas image so we avoid any CORS issues
+            const canvas = document.createElement("canvas");
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext("2d");
 
-            // 2) Wrap the blob in a File so we can upload it (same as normal flow)
-            const testFile = new File([blob], `self_test_${Date.now()}.png`, { type: "image/png" });
+            // Background
+            const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+            gradient.addColorStop(0, "#0f172a");
+            gradient.addColorStop(1, "#7c3aed");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Simple label text
+            ctx.fillStyle = "#e5e7eb";
+            ctx.font = "bold 32px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("GenShare Self-Test", 256, 256);
+
+            // 2) Convert canvas to Blob and wrap in a File, same as a real upload
+            const testFile = await new Promise((resolve, reject) => {
+                canvas.toBlob(
+                    (blob) => {
+                        if (!blob) return reject(new Error("Canvas toBlob failed"));
+                        resolve(new File([blob], `self_test_${Date.now()}.png`, { type: "image/png" }));
+                    },
+                    "image/png"
+                );
+            });
 
             // 3) Upload the file to persistent storage; this URL mimics sourceImageUrl in normal requests
             const uploadedUrl = await websim.upload(testFile);
@@ -127,7 +148,7 @@ const App = () => {
                 reader.readAsDataURL(uploadedBlob);
             });
 
-            // 5) Trigger an img2img generation using the uploaded image URL content
+            // 5) Trigger an img2img generation using the uploaded image content
             await websim.imageGen({
                 prompt: testPrompt,
                 width: 1024,
