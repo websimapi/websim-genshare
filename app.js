@@ -155,12 +155,23 @@ const App = () => {
             // Call AI
             const result = await websim.imageGen(options);
 
+            // Persistent Upload: Upload generated image to storage so it's permanent and downloadable
+            let finalImageUrl = result.url;
+            try {
+                const imgRes = await fetch(result.url);
+                const imgBlob = await imgRes.blob();
+                const imgFile = new File([imgBlob], `gen_${Date.now()}.png`, { type: 'image/png' });
+                finalImageUrl = await websim.upload(imgFile);
+            } catch (e) {
+                console.error("Failed to persist generated image:", e);
+            }
+
             // Update local spent amount
             const newSpent = currentSpent + COST;
             setSpent(newSpent);
 
             // Log to Database using Utils
-            await logJobToDatabase(room, requestData, result.url);
+            await logJobToDatabase(room, requestData, finalImageUrl);
 
             // Send Result back
             const msg = {
@@ -169,7 +180,7 @@ const App = () => {
                     targetId: requestData.senderId,
                     processorName: room.peers[room.clientId]?.username || currentUser?.username || "Unknown",
                     success: true,
-                    imageUrl: result.url
+                    imageUrl: finalImageUrl
                 }
             };
             room.send(msg);
