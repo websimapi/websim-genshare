@@ -18,7 +18,8 @@ window.AppUtils = {
             requested_by: reqData.senderName,
             result_url: resultUrl,
             cost: 100,
-            prompt: reqData.prompt // Added prompt to log for Gallery
+            prompt: reqData.prompt, // Added prompt to log for Gallery
+            source_image_url: reqData.sourceImageUrl || null
         };
 
         if (records.length > 0) {

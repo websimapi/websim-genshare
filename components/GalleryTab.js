@@ -29,7 +29,8 @@ window.GalleryTab = ({ room }) => {
                                     processor: record.username,
                                     requester: log.requested_by,
                                     timestamp: new Date(log.timestamp),
-                                    prompt: log.prompt || "No prompt recorded"
+                                    prompt: log.prompt || "No prompt recorded",
+                                    source_image: log.source_image_url
                                 });
                             }
                         });
@@ -83,6 +84,17 @@ window.GalleryTab = ({ room }) => {
                                 <p className="text-xs text-white line-clamp-2 mb-2 italic">
                                     "{img.prompt}"
                                 </p>
+                                
+                                {img.source_image && (
+                                    <a 
+                                        href={img.source_image} 
+                                        target="_blank"
+                                        className="inline-block mb-2 text-[10px] bg-indigo-900/60 border border-indigo-500/30 rounded px-1.5 py-0.5 text-indigo-200 hover:bg-indigo-800 transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        📷 Used Reference Image
+                                    </a>
+                                )}
                                 
                                 <div className="flex justify-between items-end border-t border-white/10 pt-2 mt-1">
                                     <div className="flex flex-col text-[10px] text-slate-300">
