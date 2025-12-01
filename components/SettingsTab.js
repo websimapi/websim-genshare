@@ -1,11 +1,18 @@
-window.SettingsTab = ({ currentUser, threshold, setThreshold, spent, setSpent, runSelfTest }) => {
+window.SettingsTab = ({ currentUser, currentPeer, threshold, setThreshold, spent, setSpent, runSelfTest }) => {
+    const avatarUrl = currentPeer?.avatarUrl || currentUser?.avatarUrl;
+    const displayName = currentPeer?.username || currentUser?.username;
+
     return (
         <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                 <div className="flex items-center gap-4 mb-4">
-                    <img src={currentUser?.avatarUrl} className="w-16 h-16 rounded-full border-2 border-purple-500" />
+                    <img
+                        src={avatarUrl}
+                        className="w-16 h-16 rounded-full border-2 border-purple-500 bg-slate-700"
+                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/64'; }}
+                    />
                     <div>
-                        <h2 className="text-xl font-bold">{currentUser?.username}</h2>
+                        <h2 className="text-xl font-bold">{displayName}</h2>
                         <p className="text-slate-400 text-sm">Credit Provider</p>
                     </div>
                 </div>

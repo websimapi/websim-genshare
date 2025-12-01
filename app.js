@@ -346,6 +346,7 @@ const App = () => {
                 {tab === 'settings' && (
                     <SettingsTab 
                         currentUser={currentUser}
+                        currentPeer={peers[room.clientId]}
                         threshold={threshold}
                         setThreshold={setThreshold}
                         spent={spent}
