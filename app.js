@@ -99,31 +99,33 @@ const App = () => {
     };
 
     const runSelfTest = async () => {
-        setTab('generate');
-        const testPrompt = "A futuristic cyberpunk artistic variation of this profile avatar, high quality, 8k, vibrant colors";
-        setPrompt(testPrompt);
-        
-        // Use a fallback if avatar is missing/broken
-        const sourceUrl = currentUser?.avatarUrl || "https://images.websim.com/avatar/default";
+        try {
+            // Use a simple default prompt and a default image (your avatar or fallback)
+            const testPrompt = "Test img2img request: stylized neon portrait, cyberpunk, high detail";
+            const sourceUrl = currentUser?.avatarUrl || "https://images.websim.com/avatar/default";
 
-        // Provide visual feedback immediately
-        setStatusMsg("Initiating Self-Test...");
-        setResultImage(null);
+            // Download the source image and convert to base64 data URL for img2img
+            const response = await fetch(sourceUrl);
+            if (!response.ok) throw new Error("Could not download test source image");
+            const blob = await response.blob();
 
-        const msg = {
-            type: 'REQUEST_GENERATION',
-            data: {
-                targetId: room.clientId,
-                senderId: room.clientId,
-                senderName: currentUser?.username || "Self",
+            const base64Data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+
+            // Trigger an img2img generation processed locally (no UI updates, no DB logging)
+            await websim.imageGen({
                 prompt: testPrompt,
-                sourceImageUrl: sourceUrl
-            }
-        };
-
-        // Directly invoke the handler to start processing as "myself"
-        // We wrap this in a timeout to ensure state updates (like tab switch) render first
-        setTimeout(() => handleMessage(msg), 100);
+                width: 1024,
+                height: 1024,
+                image_inputs: [{ url: base64Data }]
+            });
+        } catch (err) {
+            console.error("Self-test img2img request failed:", err);
+        }
     };
 
     // --- The Core "Server" Logic (Runs on client) ---
