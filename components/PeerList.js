@@ -5,7 +5,17 @@ window.PeerList = ({ peers, currentUser, room, presence, processingPeerId, sendR
     const peersMap = new Map();
 
     // 1. Add "Me" first (Highest priority, ensures correct PFP)
-    if (currentUser && room.clientId) {
+    const myPeer = peers[room.clientId];
+    
+    if (myPeer) {
+        // Use the room's peer data for "Me" to ensure the avatar matches what others see
+        peersMap.set(myPeer.username, {
+            id: room.clientId,
+            username: `${myPeer.username} (Me)`,
+            avatarUrl: myPeer.avatarUrl
+        });
+    } else if (currentUser && room.clientId) {
+        // Fallback to local user data if room peer data isn't ready
         peersMap.set(currentUser.username, {
             id: room.clientId,
             username: `${currentUser.username} (Me)`,
