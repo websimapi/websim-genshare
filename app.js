@@ -10,6 +10,10 @@ const App = () => {
     const [threshold, setThreshold] = React.useState(500);
     const [spent, setSpent] = React.useState(0);
 
+    // Refs for accessing latest state in callbacks
+    const spentRef = React.useRef(spent);
+    const thresholdRef = React.useRef(threshold);
+
     // UI State
     const [tab, setTab] = React.useState('generate'); // generate | settings | leaderboard
     const [prompt, setPrompt] = React.useState("");
@@ -51,6 +55,9 @@ const App = () => {
         if (currentUser) {
             updateMyPresence(spent, threshold);
         }
+        // Keep refs in sync
+        spentRef.current = spent;
+        thresholdRef.current = threshold;
     }, [spent, threshold]);
 
     // Refresh leaderboard when switching to that tab
@@ -65,7 +72,8 @@ const App = () => {
         room.updatePresence({
             spent: currentSpent,
             threshold: currentThreshold,
-            accepting: isAccepting
+            accepting: isAccepting,
+            // ensure we don't overwrite status if it exists, or let processRequest handle it
         });
     };
 
@@ -91,12 +99,15 @@ const App = () => {
     // --- The Core "Server" Logic (Runs on client) ---
     const processRequest = async (requestData) => {
         const COST = 100;
+        const currentSpent = spentRef.current;
+        const currentThreshold = thresholdRef.current;
 
         // Double check limits
-        if (spent + COST > threshold) {
+        if (currentSpent + COST > currentThreshold) {
             room.send({
                 type: 'GENERATION_COMPLETE',
                 targetId: requestData.senderId,
+                processorName: room.peers[room.clientId]?.username || "Unknown",
                 success: false,
                 error: "Processor hit credit limit."
             });
@@ -121,7 +132,7 @@ const App = () => {
             const result = await websim.imageGen(options);
 
             // Update local spent amount
-            const newSpent = spent + COST;
+            const newSpent = currentSpent + COST;
             setSpent(newSpent);
 
             // Log to Database (User's single row)
@@ -141,15 +152,18 @@ const App = () => {
             room.send({
                 type: 'GENERATION_COMPLETE',
                 targetId: requestData.senderId,
-                processorName: room.peers[room.clientId].username,
+                processorName: room.peers[room.clientId]?.username || "Unknown",
                 success: false,
                 error: "Generation failed."
             });
         } finally {
+            // We need to get the *latest* spent because setSpent is async/batched, 
+            // but for simplicity we use the calculated newSpent from this closure if success, 
+            // or revert to ref if failed? 
+            // Actually, safest to just clear status. The useEffect [spent] will update the 'spent' field in presence automatically.
             room.updatePresence({
                 ...room.presence[room.clientId],
                 status: 'idle',
-                spent: spent + COST // Ensure presence reflects new spent
             });
         }
     };
@@ -240,10 +254,12 @@ const App = () => {
 
     const getPeerStatus = (pid) => {
         const p = presence[pid] || {};
-        if (pid === room.clientId) return { label: "(You)", valid: false };
-        if (p.status === 'generating') return { label: "Busy", valid: false };
-        if (p.accepting === false) return { label: "Maxed Out", valid: false };
-        return { label: "Available", valid: true };
+        const isMe = pid === room.clientId;
+        
+        if (p.status === 'generating') return { label: isMe ? "Busy (Generating)" : "Busy", valid: false };
+        if (p.accepting === false) return { label: isMe ? "Maxed Out" : "Maxed Out", valid: false };
+        
+        return { label: isMe ? "(You) Available" : "Available", valid: true };
     };
 
     return (
@@ -432,7 +448,6 @@ const App = () => {
                             <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Select Processor (100 Cr)</h3>
                             <div className="grid grid-cols-1 gap-2">
                                 {Object.values(peers).map((peer) => {
-                                    if (peer.id === room.clientId) return null; // Don't show self
                                     const status = getPeerStatus(peer.id);
 
                                     return (
