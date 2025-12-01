@@ -104,13 +104,17 @@ const App = () => {
 
         // Double check limits
         if (currentSpent + COST > currentThreshold) {
-            room.send({
+            const msg = {
                 type: 'GENERATION_COMPLETE',
-                targetId: requestData.senderId,
-                processorName: room.peers[room.clientId]?.username || "Unknown",
-                success: false,
-                error: "Processor hit credit limit."
-            });
+                data: {
+                    targetId: requestData.senderId,
+                    processorName: room.peers[room.clientId]?.username || currentUser?.username || "Unknown",
+                    success: false,
+                    error: "Processor hit credit limit."
+                }
+            };
+            room.send(msg);
+            if (msg.data.targetId === room.clientId) handleMessage(msg);
             return;
         }
 
@@ -139,23 +143,31 @@ const App = () => {
             await logJobToDatabase(requestData, result.url);
 
             // Send Result back
-            room.send({
+            const msg = {
                 type: 'GENERATION_COMPLETE',
-                targetId: requestData.senderId,
-                processorName: room.peers[room.clientId].username,
-                success: true,
-                imageUrl: result.url
-            });
+                data: {
+                    targetId: requestData.senderId,
+                    processorName: room.peers[room.clientId]?.username || currentUser?.username || "Unknown",
+                    success: true,
+                    imageUrl: result.url
+                }
+            };
+            room.send(msg);
+            if (msg.data.targetId === room.clientId) handleMessage(msg);
 
         } catch (err) {
             console.error(err);
-            room.send({
+            const msg = {
                 type: 'GENERATION_COMPLETE',
-                targetId: requestData.senderId,
-                processorName: room.peers[room.clientId]?.username || "Unknown",
-                success: false,
-                error: "Generation failed."
-            });
+                data: {
+                    targetId: requestData.senderId,
+                    processorName: room.peers[room.clientId]?.username || currentUser?.username || "Unknown",
+                    success: false,
+                    error: "Generation failed."
+                }
+            };
+            room.send(msg);
+            if (msg.data.targetId === room.clientId) handleMessage(msg);
         } finally {
             // We need to get the *latest* spent because setSpent is async/batched, 
             // but for simplicity we use the calculated newSpent from this closure if success, 
@@ -232,16 +244,25 @@ const App = () => {
             }
         }
 
-        setStatusMsg(`Waiting for ${peers[targetPeerId]?.username}...`);
+        const targetName = (targetPeerId === room.clientId) ? "Myself" : (peers[targetPeerId]?.username || "Peer");
+        setStatusMsg(`Waiting for ${targetName}...`);
 
-        room.send({
+        const msg = {
             type: 'REQUEST_GENERATION',
-            targetId: targetPeerId,
-            senderId: room.clientId,
-            senderName: currentUser.username,
-            prompt: prompt,
-            sourceImageUrl: sourceImageUrl
-        });
+            data: {
+                targetId: targetPeerId,
+                senderId: room.clientId,
+                senderName: currentUser.username,
+                prompt: prompt,
+                sourceImageUrl: sourceImageUrl
+            }
+        };
+
+        room.send(msg);
+        // If sending to self, loopback manually as socket may not echo
+        if (targetPeerId === room.clientId) {
+            handleMessage(msg);
+        }
     };
 
     const handleFileChange = (e) => {
@@ -447,36 +468,53 @@ const App = () => {
                         <div>
                             <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Select Processor (100 Cr)</h3>
                             <div className="grid grid-cols-1 gap-2">
-                                {Object.values(peers).map((peer) => {
-                                    const status = getPeerStatus(peer.id);
+                                {(() => {
+                                    // Combine me and peers into one list
+                                    const allPeers = [];
+                                    if (currentUser && room.clientId) {
+                                        allPeers.push({
+                                            id: room.clientId,
+                                            username: `${currentUser.username} (Me)`,
+                                            avatarUrl: currentUser.avatarUrl
+                                        });
+                                    }
+                                    
+                                    // Add other peers (excluding self if present in peers list)
+                                    Object.values(peers).forEach(p => {
+                                        if (p.id !== room.clientId) allPeers.push(p);
+                                    });
 
-                                    return (
-                                        <button
-                                            key={peer.id}
-                                            disabled={!status.valid || !!processingPeerId}
-                                            onClick={() => sendRequest(peer.id)}
-                                            className={`peer-card flex items-center justify-between p-3 rounded-lg border border-slate-700 bg-slate-800 text-left ${!status.valid ? 'disabled' : ''}`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="relative">
-                                                    <img src={peer.avatarUrl} className="w-10 h-10 rounded-full bg-slate-700" />
-                                                    <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-800 ${status.valid ? 'bg-green-500' : 'bg-slate-500'}`}></div>
-                                                </div>
-                                                <div>
-                                                    <div className="font-semibold text-sm">{peer.username}</div>
-                                                    <div className="text-xs text-slate-400">{status.label}</div>
-                                                </div>
-                                            </div>
-                                            {status.valid && (
-                                                <div className="bg-purple-600/20 text-purple-300 text-xs px-2 py-1 rounded font-mono">
-                                                    REQ
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
+                                    return allPeers.map((peer) => {
+                                        const status = getPeerStatus(peer.id);
 
-                                {Object.values(peers).length <= 1 && (
+                                        return (
+                                            <button
+                                                key={peer.id}
+                                                disabled={!status.valid || !!processingPeerId}
+                                                onClick={() => sendRequest(peer.id)}
+                                                className={`peer-card flex items-center justify-between p-3 rounded-lg border border-slate-700 bg-slate-800 text-left ${!status.valid ? 'disabled' : ''}`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative">
+                                                        <img src={peer.avatarUrl} className="w-10 h-10 rounded-full bg-slate-700" />
+                                                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-800 ${status.valid ? 'bg-green-500' : 'bg-slate-500'}`}></div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-semibold text-sm">{peer.username}</div>
+                                                        <div className="text-xs text-slate-400">{status.label}</div>
+                                                    </div>
+                                                </div>
+                                                {status.valid && (
+                                                    <div className="bg-purple-600/20 text-purple-300 text-xs px-2 py-1 rounded font-mono">
+                                                        REQ
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    });
+                                })()}
+
+                                {Object.values(peers).length === 0 && !currentUser && (
                                     <div className="text-center py-8 text-slate-500 text-sm border-2 border-dashed border-slate-700 rounded-lg">
                                         Waiting for other users to join...<br />
                                         <span className="text-xs opacity-70">Open this URL in a new tab to test!</span>
