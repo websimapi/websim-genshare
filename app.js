@@ -1,6 +1,10 @@
 // Global Room Instance
 const room = new WebsimSocket();
 
+// Destructure components and utils from window
+const { Header, SettingsTab, LeaderboardTab, GenerateTab } = window;
+const { logJobToDatabase } = window.AppUtils;
+
 const App = () => {
     const [peers, setPeers] = React.useState({});
     const [presence, setPresence] = React.useState({});
@@ -39,10 +43,9 @@ const App = () => {
             room.subscribePresence((p) => setPresence(p));
 
             // Subscribe to room peers (for usernames/avatars)
-            // Note: In websim library, peers is updated automatically, but we can poll or trigger on presence
             const updatePeers = () => setPeers({ ...room.peers });
             updatePeers();
-            room.subscribePresence(updatePeers); // Peers often change when presence changes
+            room.subscribePresence(updatePeers); 
 
             // Handle Incoming Messages
             room.onmessage = handleMessage;
@@ -73,7 +76,6 @@ const App = () => {
             spent: currentSpent,
             threshold: currentThreshold,
             accepting: isAccepting,
-            // ensure we don't overwrite status if it exists, or let processRequest handle it
         });
     };
 
@@ -119,7 +121,7 @@ const App = () => {
         }
 
         try {
-            // Update status to peers (optional: busy state)
+            // Update status to peers
             room.updatePresence({ ...room.presence[room.clientId], status: 'generating' });
 
             const options = {
@@ -139,8 +141,8 @@ const App = () => {
             const newSpent = currentSpent + COST;
             setSpent(newSpent);
 
-            // Log to Database (User's single row)
-            await logJobToDatabase(requestData, result.url);
+            // Log to Database using Utils
+            await logJobToDatabase(room, requestData, result.url);
 
             // Send Result back
             const msg = {
@@ -169,50 +171,9 @@ const App = () => {
             room.send(msg);
             if (msg.data.targetId === room.clientId) handleMessage(msg);
         } finally {
-            // We need to get the *latest* spent because setSpent is async/batched, 
-            // but for simplicity we use the calculated newSpent from this closure if success, 
-            // or revert to ref if failed? 
-            // Actually, safest to just clear status. The useEffect [spent] will update the 'spent' field in presence automatically.
             room.updatePresence({
                 ...room.presence[room.clientId],
                 status: 'idle',
-            });
-        }
-    };
-
-    const logJobToDatabase = async (reqData, resultUrl) => {
-        const collection = room.collection('processor_stats_v1');
-        const myId = room.clientId; // Or user ID. Using created_by filter is safest.
-
-        // Find my existing record
-        const records = await collection.filter({ created_by: true }).getList();
-
-        const jobLog = {
-            timestamp: new Date().toISOString(),
-            requested_by: reqData.senderName,
-            result_url: resultUrl,
-            cost: 100
-        };
-
-        if (records.length > 0) {
-            const record = records[0];
-            // Append to existing logs. 
-            // Note: JSON fields in some DBs have limits, but for this demo we append to a JSON array.
-            let logs = [];
-            try {
-                logs = record.logs ? (typeof record.logs === 'string' ? JSON.parse(record.logs) : record.logs) : [];
-            } catch (e) { logs = [] }
-
-            logs.push(jobLog);
-
-            await collection.update(record.id, {
-                logs: JSON.stringify(logs),
-                total_processed: (record.total_processed || 0) + 1
-            });
-        } else {
-            await collection.create({
-                logs: JSON.stringify([jobLog]),
-                total_processed: 1
             });
         }
     };
@@ -259,7 +220,6 @@ const App = () => {
         };
 
         room.send(msg);
-        // If sending to self, loopback manually as socket may not echo
         if (targetPeerId === room.clientId) {
             handleMessage(msg);
         }
@@ -271,258 +231,43 @@ const App = () => {
         }
     };
 
-    // --- Render Helpers ---
-
-    const getPeerStatus = (pid) => {
-        const p = presence[pid] || {};
-        const isMe = pid === room.clientId;
-        
-        if (p.status === 'generating') return { label: isMe ? "Busy (Generating)" : "Busy", valid: false };
-        if (p.accepting === false) return { label: isMe ? "Maxed Out" : "Maxed Out", valid: false };
-        
-        return { label: isMe ? "(You) Available" : "Available", valid: true };
-    };
-
     return (
         <div className="flex flex-col h-full max-w-md mx-auto w-full bg-slate-900 shadow-2xl relative">
-            {/* Header */}
-            <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center z-10">
-                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-                    GenShare
-                </h1>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setTab('generate')}
-                        className={`px-3 py-1 rounded text-sm ${tab === 'generate' ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>
-                        Gen
-                    </button>
-                    <button
-                        onClick={() => setTab('leaderboard')}
-                        className={`px-3 py-1 rounded text-sm ${tab === 'leaderboard' ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>
-                        Top
-                    </button>
-                    <button
-                        onClick={() => setTab('settings')}
-                        className={`px-3 py-1 rounded text-sm ${tab === 'settings' ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>
-                        Me
-                    </button>
-                </div>
-            </header>
+            <Header tab={tab} setTab={setTab} />
 
             {/* Main Content Area */}
             <main className="flex-1 overflow-y-auto p-4 scroll-container relative">
 
-                {/* SETTINGS TAB */}
                 {tab === 'settings' && (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                            <div className="flex items-center gap-4 mb-4">
-                                <img src={currentUser?.avatarUrl} className="w-16 h-16 rounded-full border-2 border-purple-500" />
-                                <div>
-                                    <h2 className="text-xl font-bold">{currentUser?.username}</h2>
-                                    <p className="text-slate-400 text-sm">Credit Provider</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-slate-400 mb-1">Session Limit (Credits)</label>
-                                    <input
-                                        type="number"
-                                        value={threshold}
-                                        onChange={(e) => setThreshold(Number(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:border-purple-500 outline-none"
-                                    />
-                                    <p className="text-xs text-slate-500 mt-1">100 Credits per generation</p>
-                                </div>
-
-                                <div className="p-4 bg-slate-900 rounded-lg">
-                                    <div className="flex justify-between mb-2">
-                                        <span className="text-slate-300">Credits Spent</span>
-                                        <span className="font-mono text-purple-400">{spent} / {threshold}</span>
-                                    </div>
-                                    <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full ${spent >= threshold ? 'bg-red-500' : 'bg-green-500'}`}
-                                            style={{ width: `${Math.min((spent / threshold) * 100, 100)}%` }}
-                                        ></div>
-                                    </div>
-                                    <div className="mt-2 text-xs text-center">
-                                        {spent >= threshold
-                                            ? <span className="text-red-400">You are currently rejecting requests</span>
-                                            : <span className="text-green-400">You are accepting requests</span>
-                                        }
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => setSpent(0)}
-                                    className="w-full py-2 border border-slate-600 rounded hover:bg-slate-700 text-sm transition-colors"
-                                >
-                                    Reset Session Counter
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <SettingsTab 
+                        currentUser={currentUser}
+                        threshold={threshold}
+                        setThreshold={setThreshold}
+                        spent={spent}
+                        setSpent={setSpent}
+                    />
                 )}
 
-                {/* LEADERBOARD TAB */}
                 {tab === 'leaderboard' && (
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-bold text-center mb-4">Top Processors</h2>
-                        {leaderboard.length === 0 ? (
-                            <div className="text-center text-slate-500 py-10">Loading stats...</div>
-                        ) : (
-                            leaderboard.map((record, i) => (
-                                <div key={record.id} className="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
-                                    <div className="font-bold text-2xl text-slate-600 w-8 text-center">#{i + 1}</div>
-                                    <img
-                                        src={`https://images.websim.com/avatar/${record.username}`}
-                                        className="w-10 h-10 rounded-full bg-slate-700"
-                                        onError={(e) => e.target.src = 'https://via.placeholder.com/40'}
-                                    />
-                                    <div className="flex-1">
-                                        <div className="font-bold">{record.username}</div>
-                                        <div className="text-xs text-slate-400">Processed: {record.total_processed} reqs</div>
-                                    </div>
-                                    <div className="text-purple-400 font-mono text-sm">
-                                        {record.total_processed * 100} Cr
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
+                    <LeaderboardTab leaderboard={leaderboard} />
                 )}
 
-                {/* GENERATE TAB */}
                 {tab === 'generate' && (
-                    <div className="space-y-4 pb-20">
-                        {/* Result Area */}
-                        <div className="min-h-[200px] bg-black/40 rounded-xl flex items-center justify-center border border-slate-700 overflow-hidden relative group">
-                            {resultImage ? (
-                                <div className="relative w-full h-full">
-                                    <img src={resultImage} className="w-full h-auto object-contain max-h-[400px]" />
-                                    <a
-                                        href={resultImage}
-                                        download="generated.png"
-                                        className="absolute bottom-2 right-2 bg-slate-900/80 p-2 rounded text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        Download
-                                    </a>
-                                </div>
-                            ) : (
-                                <div className="text-slate-500 text-center p-4">
-                                    {processingPeerId ? (
-                                        <div className="flex flex-col items-center gap-2">
-                                            <div className="loader"></div>
-                                            <span className="text-sm animate-pulse">{statusMsg}</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center">
-                                            <span className="text-4xl mb-2">🎨</span>
-                                            <span>Image will appear here</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Inputs */}
-                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
-                            <textarea
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="Describe your image..."
-                                className="w-full bg-slate-900 border border-slate-700 rounded p-3 text-white focus:border-purple-500 outline-none resize-none h-24"
-                                disabled={!!processingPeerId}
-                            />
-
-                            <div className="flex items-center gap-2">
-                                <label className="flex-1 bg-slate-900 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm py-2 px-4 rounded cursor-pointer transition-colors flex items-center justify-center gap-2">
-                                    <span>{selectedImage ? "Change Image" : "Upload Img2Img (Optional)"}</span>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                        className="hidden"
-                                        disabled={!!processingPeerId}
-                                    />
-                                </label>
-                                {selectedImage && (
-                                    <button
-                                        onClick={() => setSelectedImage(null)}
-                                        className="bg-red-900/50 hover:bg-red-900 text-red-200 p-2 rounded border border-red-800"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
-                            </div>
-                            {selectedImage && (
-                                <div className="text-xs text-green-400 text-center truncate px-2">
-                                    {selectedImage.name}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Peer Selector */}
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wider">Select Processor (100 Cr)</h3>
-                            <div className="grid grid-cols-1 gap-2">
-                                {(() => {
-                                    // Combine me and peers into one list
-                                    const allPeers = [];
-                                    if (currentUser && room.clientId) {
-                                        allPeers.push({
-                                            id: room.clientId,
-                                            username: `${currentUser.username} (Me)`,
-                                            avatarUrl: currentUser.avatarUrl
-                                        });
-                                    }
-                                    
-                                    // Add other peers (excluding self if present in peers list)
-                                    Object.values(peers).forEach(p => {
-                                        if (p.id !== room.clientId) allPeers.push(p);
-                                    });
-
-                                    return allPeers.map((peer) => {
-                                        const status = getPeerStatus(peer.id);
-
-                                        return (
-                                            <button
-                                                key={peer.id}
-                                                disabled={!status.valid || !!processingPeerId}
-                                                onClick={() => sendRequest(peer.id)}
-                                                className={`peer-card flex items-center justify-between p-3 rounded-lg border border-slate-700 bg-slate-800 text-left ${!status.valid ? 'disabled' : ''}`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <img src={peer.avatarUrl} className="w-10 h-10 rounded-full bg-slate-700" />
-                                                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-800 ${status.valid ? 'bg-green-500' : 'bg-slate-500'}`}></div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-semibold text-sm">{peer.username}</div>
-                                                        <div className="text-xs text-slate-400">{status.label}</div>
-                                                    </div>
-                                                </div>
-                                                {status.valid && (
-                                                    <div className="bg-purple-600/20 text-purple-300 text-xs px-2 py-1 rounded font-mono">
-                                                        REQ
-                                                    </div>
-                                                )}
-                                            </button>
-                                        );
-                                    });
-                                })()}
-
-                                {Object.values(peers).length === 0 && !currentUser && (
-                                    <div className="text-center py-8 text-slate-500 text-sm border-2 border-dashed border-slate-700 rounded-lg">
-                                        Waiting for other users to join...<br />
-                                        <span className="text-xs opacity-70">Open this URL in a new tab to test!</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <GenerateTab 
+                        prompt={prompt}
+                        setPrompt={setPrompt}
+                        selectedImage={selectedImage}
+                        handleFileChange={handleFileChange}
+                        setSelectedImage={setSelectedImage}
+                        resultImage={resultImage}
+                        processingPeerId={processingPeerId}
+                        statusMsg={statusMsg}
+                        peers={peers}
+                        currentUser={currentUser}
+                        room={room}
+                        sendRequest={sendRequest}
+                        presence={presence}
+                    />
                 )}
             </main>
         </div>
