@@ -17,7 +17,8 @@ window.AppUtils = {
             timestamp: new Date().toISOString(),
             requested_by: reqData.senderName,
             result_url: resultUrl,
-            cost: 100
+            cost: 100,
+            prompt: reqData.prompt // Added prompt to log for Gallery
         };
 
         if (records.length > 0) {

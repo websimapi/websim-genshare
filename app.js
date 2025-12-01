@@ -2,7 +2,7 @@
 const room = new WebsimSocket();
 
 // Destructure components and utils from window
-const { Header, SettingsTab, LeaderboardTab, GenerateTab } = window;
+const { Header, SettingsTab, LeaderboardTab, GenerateTab, GalleryTab } = window;
 const { logJobToDatabase } = window.AppUtils;
 
 const App = () => {
@@ -264,6 +264,10 @@ const App = () => {
 
                 {tab === 'leaderboard' && (
                     <LeaderboardTab leaderboard={leaderboard} />
+                )}
+
+                {tab === 'gallery' && (
+                    <GalleryTab room={room} />
                 )}
 
                 {tab === 'generate' && (
